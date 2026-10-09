@@ -1,0 +1,49 @@
+# Verified against the official 2026-27 DECA SMG guidelines and the SIFMA
+# Program Rules linked from those guidelines. Local session rules can add limits.
+game_rules:
+  minimum_price: 3.0
+  minimum_market_cap: 25000000
+  minimum_order_shares: 10
+  maximum_security_fraction_of_equity: 0.30
+  margin_limit_fraction_of_equity: 0.50
+  transaction_fee_per_order: 5.0
+  margin_interest_annual: 0.07
+  slippage_bps_per_side: 10.0
+  minimum_asset_class_holding: 10000.0
+
+strategy:
+  position_fraction: 0.20
+  maximum_open_positions: 2
+
+decision:
+  timezone: America/New_York
+  snapshot_time: "15:40"
+  holding_period: next_snapshot
+
+candidate_filter:
+  maximum_price: 50.0
+  minimum_market_cap: 50000000
+  maximum_market_cap: 2000000000
+  minimum_day_return: 0.12
+  minimum_five_day_return: 0.15
+  minimum_volume_ratio: 1.5
+  minimum_dollar_volume: 1000000
+  minimum_median_dollar_volume: 500000
+
+risk:
+  maximum_day_return: 1.50
+  maximum_short_interest_pct: 20.0
+  maximum_close_location: 0.98
+  exclude_binary_event_risk: true
+  minimum_predicted_edge: 0.005
+
+model:
+  minimum_training_dates: 20
+  minimum_training_rows: 120
+  rolling_training_dates: 50
+  retrain_every_dates: 5
+  random_state: 42
+
+backtest:
+  initial_equity: 100000.0
+  slippage_sensitivity_bps_per_side: [0.0, 10.0, 50.0]

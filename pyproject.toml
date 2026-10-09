@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deca-smg-scanner"
+version = "0.1.0"
+description = "Rule-aware pump-reversal scanner and walk-forward backtest for the DECA Stock Market Game"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "joblib>=1.4,<2",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "pyarrow>=17,<20",
+  "PyYAML>=6,<7",
+  "scikit-learn>=1.5,<2",
+  "yfinance>=0.2.54,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+deca-smg = "deca_smg.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
