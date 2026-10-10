@@ -24,6 +24,7 @@ SHORTLIST_COLUMNS = [
     "realized_vol_20",
     "upper_wick_pct",
     "predicted_short_return_pct",
+    "scoring_method",
     "heuristic_score",
     "continuation_risk",
     "extreme_move_risk",
@@ -88,7 +89,15 @@ def shortlist_table(scored: pd.DataFrame, config: dict) -> pd.DataFrame:
     latest["selected"] = allowed & latest["eligible_rank"].le(max_positions).fillna(False)
     latest["return_1d_pct"] = 100 * latest["return_1d"]
     latest["return_5d_pct"] = 100 * latest["return_5d"]
-    latest["predicted_short_return_pct"] = 100 * latest["predicted_short_return"]
+    scoring_method = (
+        latest["scoring_method"]
+        if "scoring_method" in latest
+        else pd.Series("walk_forward_model", index=latest.index)
+    )
+    latest["scoring_method"] = scoring_method
+    latest["predicted_short_return_pct"] = (
+        100 * latest["predicted_short_return"]
+    ).where(scoring_method.eq("walk_forward_model"))
     latest["rule_status"] = "CHECK_SMG_SECURITY_TABLE_AND_LOCAL_RULES"
     latest["catalyst_review"] = "REQUIRED"
     latest["short_interest_review"] = "REQUIRED"

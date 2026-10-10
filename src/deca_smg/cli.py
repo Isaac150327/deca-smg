@@ -17,7 +17,12 @@ from .market_data import (
     read_tickers,
     write_prices,
 )
-from .model import FEATURE_COLUMNS, score_live, walk_forward_score
+from .model import (
+    FEATURE_COLUMNS,
+    InsufficientTrainingDataError,
+    score_live,
+    walk_forward_score,
+)
 from .reporting import shortlist_table, write_backtest_outputs
 
 
@@ -63,7 +68,34 @@ def command_discover(args: argparse.Namespace) -> None:
 def command_backtest(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     candidates = _candidate_panel(read_prices(args.input), config)
-    walk_forward = walk_forward_score(candidates, config)
+    trainable = candidates.loc[candidates["target_short_return_1d"].notna()].copy()
+    try:
+        walk_forward = walk_forward_score(candidates, config)
+    except InsufficientTrainingDataError as error:
+        if trainable.empty:
+            raise
+        heuristic_scored = trainable.copy()
+        heuristic_scored["predicted_short_return"] = heuristic_scored["heuristic_score"]
+        result = simulate(heuristic_scored, config)
+        sensitivity = cost_sensitivity(heuristic_scored, config)
+        write_backtest_outputs(result, sensitivity, args.output_dir)
+        model_path = Path(args.output_dir) / "model.joblib"
+        joblib.dump(
+            {
+                "method": "fixed_heuristic",
+                "model": None,
+                "features": FEATURE_COLUMNS,
+                "trained_through": str(trainable["date"].max()),
+                "reason": str(error),
+            },
+            model_path,
+        )
+        print(f"{error}\n")
+        print("Used the fixed heuristic until more training history is available.")
+        print(pd.Series(result.metrics).to_string())
+        print(f"Saved heuristic backtest artifacts to {args.output_dir}")
+        return
+
     result = simulate(walk_forward.scored, config)
     heuristic_scored = walk_forward.scored.copy()
     heuristic_scored["predicted_short_return"] = heuristic_scored["heuristic_score"]
@@ -73,6 +105,7 @@ def command_backtest(args: argparse.Namespace) -> None:
     model_path = Path(args.output_dir) / "model.joblib"
     joblib.dump(
         {
+            "method": "walk_forward_model",
             "model": walk_forward.final_model,
             "features": FEATURE_COLUMNS,
             "trained_through": str(candidates.loc[candidates["target_short_return_1d"].notna(), "date"].max()),
@@ -117,12 +150,23 @@ def command_scan(args: argparse.Namespace) -> None:
     if not candidates.empty and not args.skip_live_enrichment:
         candidates = enrich_live_candidates(candidates)
         candidates["risk_allowed"] = apply_risk_gate(candidates, config)
-    artifact = joblib.load(args.model)
-    scored = score_live(artifact["model"], candidates) if not candidates.empty else candidates
+    model_path = Path(args.model)
+    artifact = joblib.load(model_path) if model_path.exists() else {"method": "fixed_heuristic"}
+    scoring_method = artifact.get("method", "walk_forward_model")
+    if candidates.empty:
+        scored = candidates
+    elif scoring_method == "fixed_heuristic":
+        scored = candidates.copy()
+        scored["predicted_short_return"] = scored["heuristic_score"]
+    else:
+        scored = score_live(artifact["model"], candidates)
+    scored["scoring_method"] = scoring_method
     shortlist = shortlist_table(scored, config)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     shortlist.to_csv(output, index=False)
+    if scoring_method == "fixed_heuristic":
+        print("Using the fixed heuristic because there is not yet enough history for the model.")
     print(shortlist.to_string(index=False))
     print(f"Saved {len(shortlist):,} candidates to {output}")
 

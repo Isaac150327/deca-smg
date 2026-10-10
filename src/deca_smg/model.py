@@ -11,6 +11,10 @@ from sklearn.pipeline import Pipeline
 from .features import FEATURE_COLUMNS, ensure_feature_columns
 
 
+class InsufficientTrainingDataError(ValueError):
+    """Raised when a valid chronological model test cannot yet be formed."""
+
+
 @dataclass
 class WalkForwardResult:
     scored: pd.DataFrame
@@ -49,7 +53,9 @@ def walk_forward_score(candidates: pd.DataFrame, config: dict) -> WalkForwardRes
     candidates = candidates.sort_values(["date", "ticker"]).copy()
     trainable = candidates.loc[candidates["target_short_return_1d"].notna()].copy()
     if trainable.empty:
-        raise ValueError("No candidates have a known next-snapshot return")
+        raise InsufficientTrainingDataError(
+            "No candidates have a known next-snapshot return"
+        )
 
     model_config = config["model"]
     dates = list(pd.Index(trainable["date"].drop_duplicates()).sort_values())
@@ -79,9 +85,11 @@ def walk_forward_score(candidates: pd.DataFrame, config: dict) -> WalkForwardRes
         predictions.append(prediction_rows)
 
     if not predictions:
-        raise ValueError(
-            "Not enough historical pump candidates for a walk-forward test; "
-            "lower the training minimums only if the sample remains meaningful"
+        raise InsufficientTrainingDataError(
+            "Not enough historical pump candidates for a walk-forward test. "
+            f"Found {len(trainable):,} labeled candidates across {len(dates):,} dates; "
+            f"the configured minimums are {minimum_rows:,} prior candidates across "
+            f"{minimum_dates:,} prior dates."
         )
 
     final_model = _fit(trainable, random_state)

@@ -75,6 +75,13 @@ table, and a model-versus-fixed-heuristic comparison. The scanner writes all qua
 selected. The team should fill in `catalyst_review`, `short_interest_review`,
 and `team_notes` before trading.
 
+On a first run, there may be fewer than 120 labeled pump candidates across 20
+prior candidate dates. In that case, `backtest` reports the available sample,
+writes an honest fixed-heuristic backtest, and saves a heuristic-mode artifact.
+`scan` then ranks with that fixed formula instead of presenting a small-sample
+model as validated. Re-run `fetch` and `backtest` as more history accumulates;
+the same commands switch to the walk-forward model once the minimums are met.
+
 ## Verified 2026–27 competition constraints
 
 The [official DECA guidelines](https://www.deca.org/compete/stock-market-game)
