@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import joblib
@@ -10,6 +11,7 @@ from .backtest import cost_sensitivity, simulate
 from .config import load_config
 from .enrichment import enrich_live_candidates
 from .features import add_heuristic_score, apply_risk_gate, build_feature_panel, candidate_mask
+from .google_sheets import publish_csv
 from .market_data import (
     discover_universe,
     fetch_snapshots,
@@ -171,6 +173,20 @@ def command_scan(args: argparse.Namespace) -> None:
     print(f"Saved {len(shortlist):,} candidates to {output}")
 
 
+def command_publish(args: argparse.Namespace) -> None:
+    webhook_url = os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
+    token = os.environ.get("GOOGLE_SHEETS_TOKEN", "").strip()
+    if not webhook_url or not token:
+        raise RuntimeError(
+            "Set GOOGLE_SHEETS_WEBHOOK_URL and GOOGLE_SHEETS_TOKEN before publishing"
+        )
+    result = publish_csv(args.input, webhook_url, token, args.worksheet)
+    print(
+        f"Published {result['rows']:,} data rows to the "
+        f"{result['worksheet']} Google Sheet tab"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="deca-smg")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -210,6 +226,13 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--config", default="config/default.yaml")
     scan_parser.add_argument("--output", default="outputs/shortlist.csv")
     scan_parser.set_defaults(function=command_scan)
+
+    publish_parser = subparsers.add_parser(
+        "publish", help="Replace a Google Sheet tab with a CSV"
+    )
+    publish_parser.add_argument("--input", default="outputs/shortlist.csv")
+    publish_parser.add_argument("--worksheet", default="Shortlist")
+    publish_parser.set_defaults(function=command_publish)
     return parser
 
 

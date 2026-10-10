@@ -82,6 +82,14 @@ writes an honest fixed-heuristic backtest, and saves a heuristic-mode artifact.
 model as validated. Re-run `fetch` and `backtest` as more history accumulates;
 the same commands switch to the walk-forward model once the minimums are met.
 
+## Daily Google Sheet
+
+The included GitHub Actions workflow can run the complete scan on weekdays at
+3:45 p.m. New York time and replace a `Shortlist` tab in an existing Google
+Sheet. Follow the one-time [Google Sheets setup](google-sheets/SETUP.md), then
+run the workflow manually once from the repository's **Actions** page. Each run
+also keeps its CSV files as a downloadable GitHub artifact for 14 days.
+
 ## Verified 2026–27 competition constraints
 
 The [official DECA guidelines](https://www.deca.org/compete/stock-market-game)
