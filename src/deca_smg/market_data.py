@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from datetime import time
 from pathlib import Path
+import warnings
 
 import pandas as pd
 import yfinance as yf
+
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"The 'generic' unit for NumPy timedelta is deprecated.*",
+    category=DeprecationWarning,
+    module=r"yfinance\..*",
+)
 
 
 def read_tickers(path: str | Path) -> list[str]:
