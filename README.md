@@ -59,9 +59,9 @@ SPY is added automatically:
 
 ```bash
 deca-smg discover --output data/universe.csv --maximum-tickers 1000
-deca-smg fetch --tickers data/universe.csv --output data/snapshots.parquet
-deca-smg backtest --input data/snapshots.parquet --output-dir outputs/backtest
-deca-smg scan --input data/snapshots.parquet \
+deca-smg fetch --tickers data/universe.csv --output data/snapshots.csv
+deca-smg backtest --input data/snapshots.csv --output-dir outputs/backtest
+deca-smg scan --input data/snapshots.csv \
   --model outputs/backtest/model.joblib \
   --output outputs/shortlist.csv
 ```

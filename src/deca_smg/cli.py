@@ -142,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     fetch_parser = subparsers.add_parser("fetch", help="Download 3:40 ET Yahoo snapshots")
     fetch_parser.add_argument("--tickers", required=True, help="One ticker per line")
-    fetch_parser.add_argument("--output", default="data/snapshots.parquet")
+    fetch_parser.add_argument("--output", default="data/snapshots.csv")
     fetch_parser.add_argument("--period", default="60d")
     fetch_parser.add_argument("--interval", default="5m")
     fetch_parser.add_argument("--cutoff", default="15:40")
