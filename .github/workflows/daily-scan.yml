@@ -6,6 +6,9 @@ on:
     # selects the one that is 3:45 p.m. in New York on that date.
     - cron: "45 19 * * 1-5"
     - cron: "45 20 * * 1-5"
+    # One-time test: October 10, 2026 at 10:35 p.m. New York time. The schedule
+    # syntax has no year field, so the first step also checks the exact date.
+    - cron: "35 2 11 10 *"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +28,10 @@ jobs:
           run_scan=false
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             run_scan=true
+          elif [[ "$EVENT_SCHEDULE" == "35 2 11 10 *" ]]; then
+            if [[ "$(TZ=America/New_York date +%F)" == "2026-10-10" ]]; then
+              run_scan=true
+            fi
           else
             schedule_hour="${EVENT_SCHEDULE#* }"
             schedule_hour="${schedule_hour%% *}"
