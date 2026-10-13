@@ -7,10 +7,11 @@ import pandas as pd
 
 
 SHORTLIST_COLUMNS = [
+    "scan_status",
+    "date",
     "rank",
     "selected",
     "risk_allowed",
-    "date",
     "ticker",
     "company_name",
     "exchange",
@@ -70,11 +71,26 @@ def write_backtest_outputs(
         comparison.to_csv(output / "model_vs_heuristic.csv", index=False)
 
 
-def shortlist_table(scored: pd.DataFrame, config: dict) -> pd.DataFrame:
+def shortlist_table(
+    scored: pd.DataFrame,
+    config: dict,
+    as_of_date=None,
+) -> pd.DataFrame:
     if scored.empty:
-        return pd.DataFrame(columns=SHORTLIST_COLUMNS)
+        row = {column: pd.NA for column in SHORTLIST_COLUMNS}
+        row.update(
+            {
+                "scan_status": "NO_QUALIFYING_CANDIDATES",
+                "date": pd.to_datetime(as_of_date) if as_of_date is not None else pd.NaT,
+                "selected": False,
+                "risk_allowed": False,
+                "team_notes": "No stocks passed today's configured candidate filters.",
+            }
+        )
+        return pd.DataFrame([row], columns=SHORTLIST_COLUMNS)
     latest_date = scored["date"].max()
     latest = scored.loc[scored["date"].eq(latest_date)].copy()
+    latest["scan_status"] = "CANDIDATE"
     latest = latest.sort_values(
         ["predicted_short_return", "heuristic_score"], ascending=[False, False]
     )

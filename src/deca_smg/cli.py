@@ -163,14 +163,15 @@ def command_scan(args: argparse.Namespace) -> None:
     else:
         scored = score_live(artifact["model"], candidates)
     scored["scoring_method"] = scoring_method
-    shortlist = shortlist_table(scored, config)
+    shortlist = shortlist_table(scored, config, as_of_date=latest_market_date)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     shortlist.to_csv(output, index=False)
     if scoring_method == "fixed_heuristic":
         print("Using the fixed heuristic because there is not yet enough history for the model.")
     print(shortlist.to_string(index=False))
-    print(f"Saved {len(shortlist):,} candidates to {output}")
+    candidate_count = int(shortlist["scan_status"].eq("CANDIDATE").sum())
+    print(f"Saved {candidate_count:,} candidates to {output}")
 
 
 def command_publish(args: argparse.Namespace) -> None:
