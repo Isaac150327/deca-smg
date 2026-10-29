@@ -1,0 +1,35 @@
+name: Compare October 28 signals
+
+on:
+  push:
+    paths:
+      - ".github/workflows/compare-signals.yml"
+      - "scripts/compare_signals.py"
+      - "config/signal_review_2026-10-28.csv"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install scanner dependencies
+        run: python -m pip install .
+      - name: Compare signals with current prices
+        run: |
+          python scripts/compare_signals.py --signals config/signal_review_2026-10-28.csv --output reports/signal_review_2026-10-29.csv
+      - name: Save comparison report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/signal_review_2026-10-29.csv
+          git commit -m "Record October 28 signal outcomes" || exit 0
+          git push
