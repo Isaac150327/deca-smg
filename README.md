@@ -78,9 +78,14 @@ and `team_notes` before trading.
 On a first run, there may be fewer than 120 labeled pump candidates across 20
 prior candidate dates. In that case, `backtest` reports the available sample,
 writes an honest fixed-heuristic backtest, and saves a heuristic-mode artifact.
-`scan` then ranks with that fixed formula instead of presenting a small-sample
-model as validated. Re-run `fetch` and `backtest` as more history accumulates;
-the same commands switch to the walk-forward model once the minimums are met.
+`scan` then ranks candidates for research with that fixed formula, but it does
+not mark any row selected. The walk-forward model can mark rows selected only
+after at least 30 out-of-sample trades, positive net total and average trade
+returns, and no worse than a 15% out-of-sample drawdown. The CSV's
+`validation_status` and `selection_reason` columns make that state explicit.
+Re-run `fetch` and `backtest` as more history accumulates; the same commands
+switch to the walk-forward model once the training and validation minimums are
+met.
 
 ## Daily Google Sheet
 

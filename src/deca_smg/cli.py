@@ -37,6 +37,17 @@ def _candidate_panel(prices: pd.DataFrame, config: dict) -> pd.DataFrame:
     return candidates
 
 
+def _validation_status(metrics: dict, config: dict) -> tuple[bool, str]:
+    model_config = config["model"]
+    if int(metrics["trades"]) < int(model_config["minimum_validation_trades"]):
+        return False, "INSUFFICIENT_OOS_TRADES"
+    if float(metrics["total_return"]) <= 0 or float(metrics["average_trade_return"]) <= 0:
+        return False, "NEGATIVE_OOS_RETURN"
+    if float(metrics["max_drawdown"]) < float(model_config["maximum_validation_drawdown"]):
+        return False, "EXCESSIVE_OOS_DRAWDOWN"
+    return True, "VALIDATED_OOS_MODEL"
+
+
 def command_fetch(args: argparse.Namespace) -> None:
     tickers = read_tickers(args.tickers)
     prices = fetch_snapshots(
@@ -86,6 +97,9 @@ def command_backtest(args: argparse.Namespace) -> None:
             {
                 "method": "fixed_heuristic",
                 "model": None,
+                "selection_enabled": False,
+                "validation_status": "HEURISTIC_RESEARCH_ONLY",
+                "validation_metrics": result.metrics,
                 "features": FEATURE_COLUMNS,
                 "trained_through": str(trainable["date"].max()),
                 "reason": str(error),
@@ -104,11 +118,15 @@ def command_backtest(args: argparse.Namespace) -> None:
     heuristic_result = simulate(heuristic_scored, config)
     sensitivity = cost_sensitivity(walk_forward.scored, config)
     write_backtest_outputs(result, sensitivity, args.output_dir, heuristic_result)
+    selection_enabled, validation_status = _validation_status(result.metrics, config)
     model_path = Path(args.output_dir) / "model.joblib"
     joblib.dump(
         {
             "method": "walk_forward_model",
             "model": walk_forward.final_model,
+            "selection_enabled": selection_enabled,
+            "validation_status": validation_status,
+            "validation_metrics": result.metrics,
             "features": FEATURE_COLUMNS,
             "trained_through": str(candidates.loc[candidates["target_short_return_1d"].notna(), "date"].max()),
         },
@@ -155,6 +173,13 @@ def command_scan(args: argparse.Namespace) -> None:
     model_path = Path(args.model)
     artifact = joblib.load(model_path) if model_path.exists() else {"method": "fixed_heuristic"}
     scoring_method = artifact.get("method", "walk_forward_model")
+    selection_enabled = bool(artifact.get("selection_enabled", False))
+    validation_status = artifact.get(
+        "validation_status",
+        "HEURISTIC_RESEARCH_ONLY"
+        if scoring_method == "fixed_heuristic"
+        else "MODEL_VALIDATION_UNKNOWN",
+    )
     if candidates.empty:
         scored = candidates
     elif scoring_method == "fixed_heuristic":
@@ -163,12 +188,20 @@ def command_scan(args: argparse.Namespace) -> None:
     else:
         scored = score_live(artifact["model"], candidates)
     scored["scoring_method"] = scoring_method
-    shortlist = shortlist_table(scored, config, as_of_date=latest_market_date)
+    shortlist = shortlist_table(
+        scored,
+        config,
+        as_of_date=latest_market_date,
+        selection_enabled=selection_enabled,
+        validation_status=validation_status,
+    )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     shortlist.to_csv(output, index=False)
     if scoring_method == "fixed_heuristic":
         print("Using the fixed heuristic because there is not yet enough history for the model.")
+    if not selection_enabled:
+        print(f"Selections disabled: {validation_status}")
     print(shortlist.to_string(index=False))
     candidate_count = int(shortlist["scan_status"].eq("CANDIDATE").sum())
     print(f"Saved {candidate_count:,} candidates to {output}")

@@ -26,6 +26,8 @@ SHORTLIST_COLUMNS = [
     "upper_wick_pct",
     "predicted_short_return_pct",
     "scoring_method",
+    "validation_status",
+    "selection_reason",
     "heuristic_score",
     "continuation_risk",
     "extreme_move_risk",
@@ -75,6 +77,8 @@ def shortlist_table(
     scored: pd.DataFrame,
     config: dict,
     as_of_date=None,
+    selection_enabled: bool = True,
+    validation_status: str = "NOT_EVALUATED",
 ) -> pd.DataFrame:
     if scored.empty:
         row = {column: pd.NA for column in SHORTLIST_COLUMNS}
@@ -84,6 +88,8 @@ def shortlist_table(
                 "date": pd.to_datetime(as_of_date) if as_of_date is not None else pd.NaT,
                 "selected": False,
                 "risk_allowed": False,
+                "validation_status": validation_status,
+                "selection_reason": "NO_QUALIFYING_CANDIDATES",
                 "team_notes": "No stocks passed today's configured candidate filters.",
             }
         )
@@ -102,7 +108,15 @@ def shortlist_table(
         minimum_edge
     )
     latest.loc[allowed, "eligible_rank"] = range(1, int(allowed.sum()) + 1)
-    latest["selected"] = allowed & latest["eligible_rank"].le(max_positions).fillna(False)
+    within_position_limit = latest["eligible_rank"].le(max_positions).fillna(False)
+    latest["selected"] = selection_enabled & allowed & within_position_limit
+    latest["validation_status"] = validation_status
+    latest["selection_reason"] = "BELOW_MODEL_EDGE"
+    latest.loc[~latest["risk_allowed"].fillna(False), "selection_reason"] = "RISK_GATE_FAILED"
+    latest.loc[allowed & ~within_position_limit, "selection_reason"] = "BELOW_TOP_POSITION_LIMIT"
+    latest.loc[latest["selected"], "selection_reason"] = "SELECTED"
+    if not selection_enabled:
+        latest["selection_reason"] = validation_status
     latest["return_1d_pct"] = 100 * latest["return_1d"]
     latest["return_5d_pct"] = 100 * latest["return_5d"]
     scoring_method = (

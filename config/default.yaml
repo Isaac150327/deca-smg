@@ -40,6 +40,8 @@ risk:
 model:
   minimum_training_dates: 20
   minimum_training_rows: 120
+  minimum_validation_trades: 30
+  maximum_validation_drawdown: -0.15
   rolling_training_dates: 50
   retrain_every_dates: 5
   random_state: 42
