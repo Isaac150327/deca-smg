@@ -6,62 +6,61 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import yfinance as yf
+
+from deca_smg.features import add_heuristic_score, build_feature_panel
+from deca_smg.market_data import fetch_snapshots
 
 
 NEW_YORK = ZoneInfo("America/New_York")
 
 
-def _ticker_frame(download: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    if not isinstance(download.columns, pd.MultiIndex):
-        return download.copy()
-    if ticker in download.columns.get_level_values(0):
-        return download[ticker].copy()
-    if ticker in download.columns.get_level_values(1):
-        return download.xs(ticker, axis=1, level=1).copy()
-    return pd.DataFrame()
-
-
 def compare(signals: pd.DataFrame) -> pd.DataFrame:
     tickers = list(dict.fromkeys(signals["ticker"].astype(str).str.upper()))
-    download = yf.download(
-        tickers,
-        period="5d",
-        interval="5m",
-        auto_adjust=False,
-        prepost=False,
-        progress=False,
-        group_by="ticker",
-        threads=True,
-    )
+    snapshots = fetch_snapshots(tickers, period="60d", interval="5m")
+    snapshots["date"] = pd.to_datetime(snapshots["date"])
+    panel = add_heuristic_score(build_feature_panel(snapshots))
     evaluated_at = datetime.now(NEW_YORK)
     rows = []
     for signal in signals.itertuples(index=False):
-        frame = _ticker_frame(download, signal.ticker).dropna(subset=["Close"])
+        frame = snapshots.loc[snapshots["ticker"].eq(signal.ticker)].sort_values("date")
         if frame.empty:
             rows.append({**signal._asdict(), "outcome_status": "NO_PRICE_DATA"})
             continue
-        if frame.index.tz is None:
-            frame.index = frame.index.tz_localize("UTC")
-        frame.index = frame.index.tz_convert(NEW_YORK)
-        signal_date = pd.Timestamp(signal.date).date()
-        entry_rows = frame[frame.index.date == signal_date]
-        later_rows = frame[frame.index.date > signal_date]
+        signal_date = pd.Timestamp(signal.date).normalize()
+        entry_rows = frame.loc[frame["date"].eq(signal_date)]
+        later_rows = frame.loc[frame["date"].gt(signal_date)]
         if entry_rows.empty or later_rows.empty:
             rows.append({**signal._asdict(), "outcome_status": "PENDING"})
             continue
 
-        exit_date = later_rows.index[0].date()
-        exit_rows = later_rows[later_rows.index.date == exit_date]
-        entry_price = float(entry_rows["Close"].iloc[-1])
-        exit_price = float(exit_rows["Close"].iloc[-1])
+        exit_date = later_rows["date"].iloc[0]
+        exit_rows = later_rows.loc[later_rows["date"].eq(exit_date)]
+        entry_price = float(entry_rows["execution_close"].iloc[-1])
+        exit_price = float(exit_rows["execution_close"].iloc[-1])
         gross_return = 1 - exit_price / entry_price
-        complete = evaluated_at.date() > exit_date or evaluated_at.time().hour >= 16
+        feature_rows = panel.loc[
+            panel["ticker"].eq(signal.ticker) & panel["date"].eq(signal_date)
+        ]
+        feature_values = {}
+        if not feature_rows.empty:
+            feature = feature_rows.iloc[-1]
+            feature_values = {
+                "signal_return_1d_pct": 100 * feature["return_1d"],
+                "signal_return_5d_pct": 100 * feature["return_5d"],
+                "signal_volume_ratio": feature["volume_ratio_20"],
+                "signal_close_location": feature["close_location"],
+                "signal_upper_wick_pct": 100 * feature["upper_wick_pct"],
+                "signal_heuristic_score": feature["heuristic_score"],
+                "signal_continuation_risk": feature["continuation_risk"],
+                "signal_extreme_move_risk": feature["extreme_move_risk"],
+            }
+        complete = evaluated_at.date() > exit_date.date() or evaluated_at.time().hour >= 16
         rows.append(
             {
                 **signal._asdict(),
+                **feature_values,
                 "entry_price": entry_price,
-                "exit_date": exit_date.isoformat(),
+                "exit_date": exit_date.date().isoformat(),
                 "exit_price": exit_price,
                 "gross_short_return_pct": 100 * gross_return,
                 "outcome_status": "FINAL" if complete else "PROVISIONAL_INTRADAY",
